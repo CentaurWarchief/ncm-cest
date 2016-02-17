@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "lodash": "^4.4.0",
+    "node-ensure": "0.0.0",
+    "pdf.js": "^0.1.0",
+    "pdfjs-dist": "^1.4.76"
+  }
+}

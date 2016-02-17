@@ -36,7 +36,7 @@ pdfjs.getDocument(data).promise.then(document => {
       )
 
       Promise.all(
-        _.range(1, 15).map(p => {
+        _.range(1, numberOfPages + 1).map(p => {
           return new Promise((resolve, reject) => {
             document.getPage(p).then(page => {
               page.getTextContent()
@@ -72,7 +72,7 @@ pdfjs.getDocument(data).promise.then(document => {
           const maybe = _.takeRight(lines.slice(block.start, block.end), 5).reverse()
 
           const numberOfLinesToSkip = maybe.reduce((numberOfLines, line, index, lines) => {
-            if (/(A|a)nexo (IX|IV|V?I{0,3})/.test(_.take(lines, index).join(' '))) {
+            if (/Anexo (IX|IV|V?I{0,3})/.test(_.take(lines, index).join(' '))) {
               return numberOfLines + 1
             }
 
@@ -93,6 +93,7 @@ pdfjs.getDocument(data).promise.then(document => {
           return revised
         }, {}))
 
+
         const block = blocks[blocks.length - 1]
 
         const parsed = parseSegment(
@@ -111,6 +112,22 @@ pdfjs.getDocument(data).promise.then(document => {
   process.exit(1)
 })
 
+function normalizeNcms(ncms) {
+  ncms = ncms.filter(ncm => ncm.length)
+
+  if (ncms.length === 0) {
+    return []
+  }
+
+  if (/^(Capítulos?)/.test(ncms[0])) {
+    return [
+      ncms.join(' ')
+    ]
+  }
+
+  return ncms
+}
+
 function parseSegment(lines) {
   const takeSingleTableRow = lines => {
     if (lines.length < 2) {
@@ -122,19 +139,32 @@ function parseSegment(lines) {
     }
 
     const ncms = _.takeWhile(_.drop(lines, 4), (line, index, lines) => {
-      return /(\d+\.\d+(?:\.\d+)?)|(^\d+$)/.test(line) || lines[index] === ''
+      return (
+        /(\d+\.\d+(?:\.\d+)?)|(^\d+$)/.test(line) ||
+        /\d+\,|a \d{2}/.test(line) ||
+        lines[index] === '' ||
+        (
+          /^Capítulos?/.test(line) &&
+          /\d+$/.test(line)
+        )
+      )
     })
 
     const description = _.takeWhile(_.drop(lines, 4 + ncms.length), line => {
       return ! /^(\d+\.\d+)+$/.test(line)
     })
 
+    const numberOfLinesToSkip = 4 + ncms.length + description.length - 1
+
     return {
       item: lines[1],
       cest: lines[3],
-      ncms: ncms.filter(ncm => ncm.length),
-      description: description.filter(line => line.length).join(' '),
-      skip: 4 + ncms.length + description.length - 1
+      ncms: normalizeNcms(ncms),
+      description: description
+        .filter(line => line.length)
+        .join(' ')
+        .replace(/\s{2,}/g, ' '),
+      skip: numberOfLinesToSkip
     }
   }
 

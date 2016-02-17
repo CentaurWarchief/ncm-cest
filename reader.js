@@ -3,6 +3,7 @@
 const fs = require('fs')
 const pdfjs = require('pdfjs-dist')
 const _ = require('lodash')
+const argv = require('minimist')(process.argv.slice(2))
 
 const data = new Uint8Array(fs.readFileSync(__dirname + '/anexo-i.pdf'))
 
@@ -35,8 +36,13 @@ pdfjs.getDocument(data).promise.then(document => {
         })
       )
 
+      const pagesToParse = [1].concat(
+        (argv.page ? [].concat(argv.page) : _.range(1, numberOfPages + 1))
+          .filter(page => page !== 1)
+      )
+
       Promise.all(
-        _.range(1, numberOfPages + 1).map(p => {
+        pagesToParse.map(p => {
           return new Promise((resolve, reject) => {
             document.getPage(p).then(page => {
               page.getTextContent()
@@ -93,18 +99,20 @@ pdfjs.getDocument(data).promise.then(document => {
           return revised
         }, {}))
 
+        const parsed = blocks.map(segment => {
+          return parseSegment(lines.slice(segment.start, segment.end)).map(item => {
+            return _.omit(item, 'skip')
+          })
+        })
 
-        const block = blocks[blocks.length - 1]
-
-        const parsed = parseSegment(
-          lines.slice(block.start, block.end)
-        )
-
-        console.log(parsed)
+        console.log(JSON.stringify(parsed, null, 2))
       }).catch(e => {
         console.error(e.message)
         process.exit(1)
       })
+    }).catch(e => {
+      console.error(e.message)
+      process.exit(1)
     })
   })
 }).catch(e => {
@@ -141,6 +149,7 @@ function parseSegment(lines) {
     const ncms = _.takeWhile(_.drop(lines, 4), (line, index, lines) => {
       return (
         /(\d+\.\d+(?:\.\d+)?)|(^\d+$)/.test(line) ||
+        /\d+\.$/.test(line) ||
         /\d+\,|a \d{2}/.test(line) ||
         lines[index] === '' ||
         (
